@@ -1,0 +1,66 @@
+{
+  "total_count": 3,
+  "limit": 10,
+  "data": [
+    {
+      "month": 1717200000,
+      "amount": "30.00",
+      "data": [
+        {
+          "bonus": "12.50",
+          "check_number": "42",
+          "work_station_id": "7",
+          "date": 1718000000,
+          "is_authorization_bonus": false,
+          "is_referral_bonus": false,
+          "shop_address": "Kyiv, Khreshchatyk 1",
+          "type_id": 3,
+          "type_title": "Purchase bonus",
+          "type_alias": "purchase",
+          "purchase_id": 555,
+          "cash_id": 9,
+          "receipt_id": "rcpt-1",
+          "shop_id": "123"
+        },
+        {
+          "bonus": "17.50",
+          "check_number": "43",
+          "work_station_id": "8",
+          "date": 1718100000,
+          "is_authorization_bonus": false,
+          "is_referral_bonus": true,
+          "shop_address": "Kyiv, Khreshchatyk 1",
+          "type_id": 5,
+          "type_title": "Referral bonus",
+          "type_alias": "referral",
+          "purchase_id": 556,
+          "cash_id": 9,
+          "receipt_id": "rcpt-2",
+          "shop_id": "123"
+        }
+      ]
+    },
+    {
+      "month": 1714600000,
+      "amount": "50.00",
+      "data": [
+        {
+          "bonus": "50.00",
+          "check_number": "1",
+          "work_station_id": "1",
+          "date": 1714700000,
+          "is_authorization_bonus": true,
+          "is_referral_bonus": false,
+          "shop_address": "Lviv, Svobody 5",
+          "type_id": 1,
+          "type_title": "Authorization bonus",
+          "type_alias": "authorization",
+          "purchase_id": 100,
+          "cash_id": 2,
+          "receipt_id": "rcpt-3",
+          "shop_id": "456"
+        }
+      ]
+    }
+  ]
+}
