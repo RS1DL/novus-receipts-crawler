@@ -483,7 +483,8 @@ def test_main_happy_path_writes_tokens_and_masks_output(
     # Output is informative but masks the full secrets.
     out = printer.text
     assert "Ann" in out
-    assert "10.00" in out
+    # The misleading "starting bonuses" field must NOT be presented as a balance.
+    assert "bonuses" not in out.lower()
     assert str(env) in out
     assert "access-XYZ7890" not in out
     assert "refresh-ABC1234" not in out

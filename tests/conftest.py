@@ -28,6 +28,22 @@ FixtureLoader = Callable[[str], Any]
 TransportFactory = Callable[[RequestHandler], httpx.MockTransport]
 
 
+@pytest.fixture(autouse=True)
+def _isolated_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Run every test from a clean working directory.
+
+    ``AppConfig`` / ``LoginSettings`` (pydantic-settings) read ``.env`` relative
+    to the cwd. Without this, a developer's real project ``.env`` -- e.g. one
+    written by ``python -m novus_receipts.login`` -- would leak tokens into
+    tests and break the "no token configured" cases. Tests that need a dotenv
+    create their own under ``tmp_path`` and pass it explicitly.
+    """
+
+    monkeypatch.chdir(tmp_path)
+
+
 @pytest.fixture
 def load_fixture() -> FixtureLoader:
     """Return a loader that parses a JSON fixture from ``tests/fixtures/``."""

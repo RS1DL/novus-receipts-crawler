@@ -81,7 +81,10 @@ def main(
             refresh_token=session.refresh_token,
         )
 
-        print_fn(f"Logged in as {session.user_first_name} (bonuses: {session.bonuses}).")
+        # NB: session.bonuses is the confirm response's "starting bonuses" field,
+        # NOT the wallet balance (that lives at GET /user/bonuses/current), so it
+        # is intentionally not shown here to avoid confusion.
+        print_fn(f"Logged in as {session.user_first_name}.")
         print_fn(
             f"Saved user_token={_mask(session.token)} "
             f"refresh_token={_mask(session.refresh_token)} to {env_path}"
