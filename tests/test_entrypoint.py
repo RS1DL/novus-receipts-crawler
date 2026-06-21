@@ -254,6 +254,7 @@ def test_main_returns_zero_and_prints_serialisable_json(
     assert "Київ" in out
     assert "\\u04" not in out
     assert parsed["receipts"][0]["summary"]["shop_address"] == "Київ"
-    # ReceiptMapper renders dates as human-readable ISO-8601, not Unix seconds.
-    assert parsed["receipts"][0]["summary"]["date"] == "2024-06-10T06:13:20+00:00"
-    assert parsed["receipts"][0]["detail"]["date"] == "2024-06-10T06:13:20+00:00"
+    # ReceiptMapper renders dates as human-readable ISO-8601 in the configured
+    # timezone (default Europe/Kyiv -> +03:00 in June), not raw Unix seconds.
+    assert parsed["receipts"][0]["summary"]["date"] == "2024-06-10T09:13:20+03:00"
+    assert parsed["receipts"][0]["detail"]["date"] == "2024-06-10T09:13:20+03:00"

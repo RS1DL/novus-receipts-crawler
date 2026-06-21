@@ -48,6 +48,10 @@ class AppConfig(BaseSettings):
     backoff_base_s: float = 1.0
     request_delay_s: float = 0.2
     detail_concurrency: int = 1
+    # IANA timezone the CLI renders receipt dates in (NOVUS_TIMEZONE). Defaults to
+    # Kyiv so output matches what the Novus app shows. This is a presentation/
+    # mapping concern, not an API parameter.
+    timezone: str = "Europe/Kyiv"
 
     @classmethod
     def from_env(cls) -> AppConfig:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sys
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from novus_receipts.crawler.results import CrawlResult
 from novus_receipts.entrypoint import PurchaseHistoryJob
@@ -44,7 +45,9 @@ def _result_to_jsonable(result: CrawlResult[Any]) -> dict[str, Any]:
 def main() -> int:
     """Run the job, print the serialised result to stdout, return ``0``."""
 
-    result = PurchaseHistoryJob().run(mapper=ReceiptMapper())
+    job = PurchaseHistoryJob()
+    mapper = ReceiptMapper(tz=ZoneInfo(job.config.timezone))
+    result = job.run(mapper=mapper)
     # ensure_ascii=False keeps Cyrillic (and other non-ASCII) human-readable in
     # the output instead of escaping it to \uXXXX.
     json.dump(_result_to_jsonable(result), sys.stdout, ensure_ascii=False)

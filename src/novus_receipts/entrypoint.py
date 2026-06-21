@@ -47,6 +47,12 @@ class PurchaseHistoryJob:
         self._http_client = http_client
         self._with_health_check = with_health_check
 
+    @property
+    def config(self) -> AppConfig:
+        """The resolved configuration (e.g. for the CLI to read ``timezone``)."""
+
+        return self._config
+
     def run(
         self, *, mapper: Mapper[ReceiptBundle, Any] | None = None
     ) -> CrawlResult[Any]:
