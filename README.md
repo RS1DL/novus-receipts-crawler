@@ -24,6 +24,20 @@ uv run mypy             # type-check
 
 ## Run
 
+First obtain a session token via the interactive OTP login (NOVUS_API.md §2).
+It prompts for your phone number and the SMS code, then writes
+`NOVUS_USER_TOKEN` / `NOVUS_REFRESH_TOKEN` into `.env` (preserving your other
+lines; tokens are masked in the console output):
+
 ```bash
-NOVUS_USER_TOKEN=... uv run python -m novus_receipts
+uv run python -m novus_receipts.login
 ```
+
+Then collect the data (reads the tokens from `.env`):
+
+```bash
+uv run python -m novus_receipts > receipts.json
+```
+
+`NOVUS_USER_TOKEN` can also be supplied directly via the environment instead of
+the login step if you already have a token.
