@@ -19,17 +19,24 @@ from novus_receipts.dto._base import BaseDTO
 
 
 class PurchaseResponse(BaseDTO):
-    """One receipt in a list (variants A/B). Source of the detalization keys."""
+    """One receipt in a list (variants A/B). Source of the detalization keys.
 
-    id: str = Field(alias="raw_end_time_stamp")
-    cash_id: int
+    The live ``/user/purchases_2`` items carry only ``shop_id``, ``shop_address``,
+    ``date``, ``bonus``, ``amount`` and ``check_number``; ``raw_end_time_stamp``
+    (the receipt ``id``), ``cash_id`` and ``work_station_id`` are absent there, so
+    they are optional. A missing ``work_station_id`` is exactly what makes the
+    crawler fall back from ``get_bill`` to ``get_purchase`` for the detalization.
+    """
+
+    id: str | None = Field(default=None, alias="raw_end_time_stamp")
+    cash_id: int | None = None
     shop_id: str
     amount: str
     bonus: str
     check_number: str
     date: int
     shop_address: str
-    work_station_id: str
+    work_station_id: str | None = None
 
 
 class PurchaseOperationsDetails(BaseDTO):

@@ -14,7 +14,7 @@ because their fields are not specified in the API source.
 
 from __future__ import annotations
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from novus_receipts.dto._base import BaseDTO
 
@@ -27,32 +27,6 @@ class CouponResponse(BaseDTO):
     """
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-
-class GoodsPurchaseResponse(BaseDTO):
-    """A line item in :class:`PurchaseDetalizationResponse` (variant A)."""
-
-    title: str
-    amount: str
-    quantity: str
-    price_type: str
-    id: int
-
-
-class PurchaseDetalizationResponse(BaseDTO):
-    """Variant A receipt detail: ``/user/purchase_2`` (NOVUS_API.md §4.2 A)."""
-
-    id: int
-    amount: str
-    bonuses_accrued: str
-    bonuses_written_off: str
-    check_number: str
-    coupons: list[CouponResponse]
-    date: int
-    goods: list[GoodsPurchaseResponse]
-    payment_method: str
-    shop_address: str
-    shop_id: str
 
 
 class BonusesDetail(BaseDTO):
@@ -78,22 +52,52 @@ class GoodDiscount(BaseDTO):
 
 
 class GoodResponse(BaseDTO):
-    """A line item in :class:`BillResponse` (variant B).
+    """A receipt line item (used by both detail endpoints).
 
-    ``rating`` has an unspecified type in the API source (PLAN.md §3.4 open
-    question) so it accepts ``str``, ``float`` or missing/``None``.
+    Only ``title``/``amount``/``quantity``/``price_type``/``id`` are reliably
+    present in the live API; ``item_price``/``old_price``/``image``/``discounts``
+    vary by receipt and so are optional. ``rating`` has an unspecified type in
+    the API source (PLAN.md §3.4 open question): ``str``, ``float`` or ``None``.
     """
 
     title: str
     amount: str
     quantity: str
-    item_price: str
-    old_price: str
     price_type: str
-    image: str
-    rating: str | float | None = None
     id: int
-    discounts: list[GoodDiscount]
+    item_price: str | None = None
+    old_price: str | None = None
+    image: str | None = None
+    rating: str | float | None = None
+    discounts: list[GoodDiscount] = Field(default_factory=list)
+
+
+class PurchaseDetalizationResponse(BaseDTO):
+    """Receipt detail from ``/user/purchase_2`` (NOVUS_API.md §4.2 A).
+
+    The live endpoint returns the *rich* shape -- bonus/discount breakdowns,
+    savings totals and detailed ``goods`` -- but omits ``id``. So ``id`` is
+    optional and the rich collections default to empty when absent. (The
+    reverse-engineered spec described a leaner variant A; the real response,
+    captured here, mirrors :class:`BillResponse` minus ``id`` and
+    ``is_csat_available``.)
+    """
+
+    id: int | None = None
+    amount: str
+    bonuses_accrued: str
+    bonuses_written_off: str
+    check_number: str
+    date: int
+    payment_method: str
+    shop_address: str
+    shop_id: str
+    coupons: list[CouponResponse] = Field(default_factory=list)
+    goods: list[GoodResponse] = Field(default_factory=list)
+    bonuses_details: list[BonusesDetail] = Field(default_factory=list)
+    discounts_details: list[DiscountsDetail] = Field(default_factory=list)
+    total_discount_saving: str | None = None
+    total_promotion_saving: str | None = None
 
 
 class BillResponse(BaseDTO):

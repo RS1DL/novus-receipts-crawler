@@ -29,6 +29,7 @@ import time
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Protocol, TypeVar
 
+from pydantic import ValidationError
 from tenacity import (
     RetryCallState,
     Retrying,
@@ -178,7 +179,10 @@ class PurchasesCrawler:
             return None
         try:
             return self._call_with_resilience(lambda: self._fetch_detail(check))
-        except NovusError as exc:  # non-fatal: record and carry on
+        except (NovusError, ValidationError) as exc:  # non-fatal: record, carry on
+            # A NovusError (API/transport) OR a pydantic ValidationError (a single
+            # receipt whose detail shape we can't parse) must not abort the whole
+            # crawl -- record it and keep the rest of the receipts.
             item_errors.append(CrawlItemError(check=check, error=exc))
             return None
 

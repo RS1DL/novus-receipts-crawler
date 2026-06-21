@@ -82,6 +82,28 @@ def test_purchase_response_values_roundtrip() -> None:
     assert model.work_station_id == "9"
 
 
+def test_purchase_response_parses_live_minimal_item() -> None:
+    # The real /user/purchases_2 item omits raw_end_time_stamp, cash_id and
+    # work_station_id; those must be optional (None) so the list still parses.
+    live_item = {
+        "shop_id": "7016",
+        "shop_address": "м. Київ, Львівська площа, 8Б",
+        "date": 1781690422,
+        "bonus": "2.32",
+        "amount": "232.45",
+        "check_number": "1118.29-0",
+    }
+
+    model = PurchaseResponse.model_validate(live_item)
+
+    assert model.id is None
+    assert model.cash_id is None
+    assert model.work_station_id is None
+    assert model.shop_id == "7016"
+    assert model.date == 1781690422
+    assert model.check_number == "1118.29-0"
+
+
 def test_purchase_response_ignores_unknown_keys() -> None:
     payload = _purchase_json()
     payload["undocumented_field"] = {"nested": True}

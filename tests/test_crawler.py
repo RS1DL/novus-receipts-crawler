@@ -26,6 +26,7 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from novus_receipts.config import AppConfig
 from novus_receipts.crawler.pagination import iter_purchase_pages
@@ -688,6 +689,32 @@ def test_crawl_captures_detail_error_and_continues(
     assert isinstance(err, CrawlItemError)
     assert err.check.check_number == "1"
     assert isinstance(err.error, NovusApiError)
+
+
+def test_crawl_captures_detail_validation_error_and_continues(
+    api: FakeApi, fake_sleeper: Any
+) -> None:
+    # A pydantic ValidationError (one receipt's detail shape can't be parsed)
+    # must be non-fatal -- recorded and skipped -- not abort the whole crawl.
+    try:
+        BillResponse.model_validate({})
+    except ValidationError as exc:
+        bad_detail = exc
+
+    c1 = make_check(check_number="1", work_station_id="9")
+    c2 = make_check(check_number="2", work_station_id="9")
+    page = make_page([[c1, c2]], page=1, total_count=2)
+    api.queue_purchases_2(page, make_page([], page=2, total_count=2))
+    api.queue_bill(bad_detail, make_bill("2"))
+    api.queue_bonuses(make_bonuses())
+
+    crawler = make_crawler(api, fake_sleeper)
+    result = crawler.crawl_purchase_history()
+
+    assert result.receipts[0].detail is None
+    assert isinstance(result.receipts[1].detail, BillResponse)
+    assert len(result.errors) == 1
+    assert isinstance(result.errors[0].error, ValidationError)
 
 
 # --------------------------------------------------------------------------- #

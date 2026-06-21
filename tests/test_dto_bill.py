@@ -15,7 +15,6 @@ from novus_receipts.dto.bill import (
     DiscountsDetail,
     GoodDiscount,
     GoodResponse,
-    GoodsPurchaseResponse,
     ProfileResponse,
     PurchaseDetalizationResponse,
 )
@@ -109,12 +108,15 @@ def test_purchase_detalization_nested_goods_parse() -> None:
 
     assert len(model.goods) == 1
     good = model.goods[0]
-    assert isinstance(good, GoodsPurchaseResponse)
+    assert isinstance(good, GoodResponse)
     assert good.title == "Milk 1L"
     assert good.amount == "35.98"
     assert good.quantity == "2"
     assert good.price_type == "regular"
     assert good.id == 555
+    # Rich fields absent in this lean item default to None / [].
+    assert good.item_price is None
+    assert good.discounts == []
 
 
 def test_purchase_detalization_coupons_parse() -> None:
@@ -124,18 +126,44 @@ def test_purchase_detalization_coupons_parse() -> None:
     assert isinstance(model.coupons[0], CouponResponse)
 
 
-def test_goods_purchase_id_is_int() -> None:
-    good = GoodsPurchaseResponse.model_validate(
-        {
-            "title": "X",
-            "amount": "1.00",
-            "quantity": "1",
-            "price_type": "regular",
-            "id": 5,
-        }
-    )
+def test_purchase_detalization_parses_live_rich_shape_without_id() -> None:
+    # The live /user/purchase_2 omits `id` and returns the rich BillResponse-like
+    # shape with detailed goods; this must parse and capture the extra fields.
+    live = {
+        "amount": "232.45",
+        "bonuses_accrued": "2.32",
+        "bonuses_written_off": "0.00",
+        "check_number": "1118.29-0",
+        "date": 1781690422,
+        "payment_method": "card",
+        "shop_address": "м. Київ, Львівська площа, 8Б",
+        "shop_id": "7016",
+        "coupons": [],
+        "bonuses_details": [{"amount": "2.32", "goods_title": "Кава"}],
+        "discounts_details": [{"amount": "5.00", "title": "Акція"}],
+        "total_discount_saving": "5.00",
+        "total_promotion_saving": "0.00",
+        "goods": [
+            {
+                "title": "Кава",
+                "amount": "120.00",
+                "quantity": "1",
+                "price_type": "regular",
+                "id": 1,
+                "item_price": "120.00",
+                "old_price": "150.00",
+                "image": "https://img/x.png",
+                "discounts": [],
+            }
+        ],
+    }
 
-    assert isinstance(good.id, int)
+    model = PurchaseDetalizationResponse.model_validate(live)
+
+    assert model.id is None
+    assert model.total_discount_saving == "5.00"
+    assert len(model.bonuses_details) == 1
+    assert model.goods[0].item_price == "120.00"
 
 
 # --- CouponResponse: extra="allow" -----------------------------------------
