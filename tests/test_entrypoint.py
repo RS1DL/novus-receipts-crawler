@@ -258,3 +258,7 @@ def test_main_returns_zero_and_prints_serialisable_json(
     # timezone (default Europe/Kyiv -> +03:00 in June), not raw Unix seconds.
     assert parsed["receipts"][0]["summary"]["date"] == "2024-06-10T09:13:20+03:00"
     assert parsed["receipts"][0]["detail"]["date"] == "2024-06-10T09:13:20+03:00"
+    # Money fields are numbers (not strings); the bonus balance too.
+    assert parsed["receipts"][0]["summary"]["amount"] == 250.5
+    assert isinstance(parsed["receipts"][0]["summary"]["amount"], float)
+    assert parsed["current_bonuses"]["data"] == 12.3

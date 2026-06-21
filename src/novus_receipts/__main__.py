@@ -13,26 +13,34 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from novus_receipts.crawler.results import CrawlResult
+from novus_receipts.dto.bonuses import UserBonusResponse
 from novus_receipts.entrypoint import PurchaseHistoryJob
-from novus_receipts.mapping.mappers import ReceiptMapper
+from novus_receipts.mapping.mappers import ReceiptMapper, to_number
+
+
+def _bonuses_to_jsonable(bonuses: UserBonusResponse | None) -> dict[str, Any] | None:
+    """Dump the balance DTO with its money ``data`` field as a number."""
+
+    if bonuses is None:
+        return None
+    dumped = bonuses.model_dump()
+    if isinstance(dumped.get("data"), str):
+        dumped["data"] = to_number(dumped["data"])
+    return dumped
 
 
 def _result_to_jsonable(result: CrawlResult[Any]) -> dict[str, Any]:
     """Turn a :class:`CrawlResult` into a JSON-serialisable dict.
 
-    ``receipts`` are already JSON-able dicts produced by :class:`ReceiptMapper`.
-    The bonus balance DTO goes through ``model_dump``; per-item errors keep only
-    the failing check's number and a string rendering of the exception (an
-    ``Exception`` is not JSON-serialisable on its own).
+    ``receipts`` are already JSON-able dicts produced by :class:`ReceiptMapper`
+    (ISO dates, money as numbers). The bonus balance is normalised the same way;
+    per-item errors keep only the failing check's number and a string rendering
+    of the exception (an ``Exception`` is not JSON-serialisable on its own).
     """
 
     return {
         "receipts": list(result.receipts),
-        "current_bonuses": (
-            None
-            if result.current_bonuses is None
-            else result.current_bonuses.model_dump()
-        ),
+        "current_bonuses": _bonuses_to_jsonable(result.current_bonuses),
         "pages_fetched": result.pages_fetched,
         "total_count": result.total_count,
         "errors": [

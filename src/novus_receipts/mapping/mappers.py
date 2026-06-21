@@ -52,32 +52,76 @@ def format_timestamp(timestamp: int, tz: tzinfo = UTC) -> str:
     return datetime.fromtimestamp(timestamp, tz=tz).isoformat()
 
 
+def to_number(value: str) -> float | str:
+    """Parse a money string (e.g. ``"232.45"``) to a ``float`` for JSON output.
+
+    Non-numeric strings are returned unchanged, so it is safe on fields that may
+    occasionally hold something other than a decimal.
+    """
+
+    try:
+        return float(value)
+    except ValueError:
+        return value
+
+
+#: JSON keys whose string values are monetary and should become numbers. Note
+#: ``quantity`` is intentionally excluded (it is a count/weight, not money).
+_MONEY_KEYS = frozenset(
+    {
+        "amount",
+        "bonus",
+        "bonuses_accrued",
+        "bonuses_written_off",
+        "total_discount_saving",
+        "total_promotion_saving",
+        "item_price",
+        "old_price",
+        "discount_amount",
+    }
+)
+
+
 class ReceiptMapper:
     """Maps a raw :class:`ReceiptBundle` to a JSON-able dict for consumption.
 
     The API/DTO layers stay a raw mirror of the responses (Unix-second ``date``,
     money as strings); this mapper is the crawler's seam (PLAN.md §7) where the
-    collected data is shaped. Currently it renders every ``date`` (Unix seconds)
-    as a human-readable ISO-8601 string in ``tz`` (UTC by default); future
-    transforms (money ``str -> Decimal``, flattening) belong here too.
+    collected data is shaped:
+
+    - every ``date`` (Unix seconds) becomes a human-readable ISO-8601 string in
+      ``tz`` (UTC by default);
+    - every money field (see ``_MONEY_KEYS``), at any nesting depth, becomes a
+      ``float`` instead of a string.
+
+    Other fields (ids, ``check_number``, ``quantity``, ``price_type`` ...) are
+    carried through untouched.
     """
 
     def __init__(self, tz: tzinfo = UTC) -> None:
         self._tz = tz
 
     def map(self, dto: ReceiptBundle) -> dict[str, Any]:
-        """Return ``{"summary": ..., "detail": ...}`` with ISO-8601 dates."""
+        """Return ``{"summary": ..., "detail": ...}``, normalised for humans."""
 
-        detail = None if dto.detail is None else self._with_iso_dates(dto.detail.model_dump())
+        detail = None if dto.detail is None else self._normalise(dto.detail.model_dump())
         return {
-            "summary": self._with_iso_dates(dto.summary.model_dump()),
+            "summary": self._normalise(dto.summary.model_dump()),
             "detail": detail,
         }
 
-    def _with_iso_dates(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Return ``data`` with an integer ``date`` replaced by its ISO string."""
+    def _normalise(self, value: Any) -> Any:
+        """Recursively render dates ISO-8601 and money fields as numbers."""
 
-        timestamp = data.get("date")
-        if isinstance(timestamp, int):
-            return {**data, "date": format_timestamp(timestamp, self._tz)}
-        return data
+        if isinstance(value, dict):
+            return {key: self._normalise_field(key, val) for key, val in value.items()}
+        if isinstance(value, list):
+            return [self._normalise(item) for item in value]
+        return value
+
+    def _normalise_field(self, key: str, value: Any) -> Any:
+        if key == "date" and isinstance(value, int):
+            return format_timestamp(value, self._tz)
+        if key in _MONEY_KEYS and isinstance(value, str):
+            return to_number(value)
+        return self._normalise(value)

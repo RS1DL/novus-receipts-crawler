@@ -78,7 +78,24 @@ def _bundle(*, with_detail: bool) -> ReceiptBundle:
                 "payment_method": "Готівка",
                 "shop_address": "Київ",
                 "shop_id": "7016",
-                "goods": [],
+                "goods": [
+                    {
+                        "title": "Кава",
+                        "amount": "120.00",
+                        "quantity": "0.224",
+                        "price_type": "КГ",
+                        "id": 1,
+                        "item_price": "535.71",
+                        "old_price": "600.00",
+                        "discounts": [
+                            {
+                                "discount_amount": "64.29",
+                                "discount_title": "Акція",
+                                "discount_type_title": "promo",
+                            }
+                        ],
+                    }
+                ],
             }
         )
     return ReceiptBundle(summary=summary, detail=detail)
@@ -89,9 +106,36 @@ def test_receipt_mapper_renders_summary_and_detail_dates_as_iso() -> None:
 
     assert mapped["summary"]["date"] == "2026-06-17T10:00:22+00:00"
     assert mapped["detail"]["date"] == "2026-06-17T10:00:22+00:00"
-    # Non-date fields are carried through untouched (still raw strings).
-    assert mapped["summary"]["amount"] == "232.45"
     assert mapped["detail"]["payment_method"] == "Готівка"
+
+
+def test_receipt_mapper_converts_money_fields_to_numbers() -> None:
+    mapped = ReceiptMapper(tz=UTC).map(_bundle(with_detail=True))
+
+    # Money becomes float at every depth (summary, detail, goods, discounts).
+    assert mapped["summary"]["amount"] == 232.45
+    assert mapped["summary"]["bonus"] == 2.32
+    assert mapped["detail"]["bonuses_accrued"] == 2.32
+    good = mapped["detail"]["goods"][0]
+    assert good["amount"] == 120.0
+    assert good["item_price"] == 535.71
+    assert good["old_price"] == 600.0
+    assert good["discounts"][0]["discount_amount"] == 64.29
+    assert all(
+        isinstance(good[k], float) for k in ("amount", "item_price", "old_price")
+    )
+
+
+def test_receipt_mapper_leaves_non_money_fields_as_is() -> None:
+    mapped = ReceiptMapper(tz=UTC).map(_bundle(with_detail=True))
+    good = mapped["detail"]["goods"][0]
+
+    # ids, check_number, quantity and price_type stay strings/ints, not money.
+    assert mapped["summary"]["check_number"] == "1118.29-0"
+    assert mapped["summary"]["shop_id"] == "7016"
+    assert good["quantity"] == "0.224"
+    assert good["price_type"] == "КГ"
+    assert good["id"] == 1
 
 
 def test_receipt_mapper_handles_missing_detail() -> None:
