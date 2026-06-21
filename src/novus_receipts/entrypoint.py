@@ -13,12 +13,15 @@ when crawling raises, so connections never leak.
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 
 from novus_receipts.api.client import NovusApiClient
 from novus_receipts.config import AppConfig
 from novus_receipts.crawler.purchases_crawler import PurchasesCrawler
-from novus_receipts.crawler.results import CrawlResult
+from novus_receipts.crawler.results import CrawlResult, ReceiptBundle
+from novus_receipts.mapping.mappers import Mapper
 
 
 class PurchaseHistoryJob:
@@ -44,7 +47,9 @@ class PurchaseHistoryJob:
         self._http_client = http_client
         self._with_health_check = with_health_check
 
-    def run(self) -> CrawlResult:
+    def run(
+        self, *, mapper: Mapper[ReceiptBundle, Any] | None = None
+    ) -> CrawlResult[Any]:
         """Build the client, (optionally) health-check, crawl; always close.
 
         Steps (PLAN.md §5):
@@ -54,8 +59,9 @@ class PurchaseHistoryJob:
         2. construct :class:`NovusApiClient` and set the starting ``user_token``
            from config;
         3. optionally ``get_profile()`` as a token health-check before crawling;
-        4. run :meth:`PurchasesCrawler.crawl_purchase_history`;
-        5. return the raw :class:`CrawlResult`;
+        4. run :meth:`PurchasesCrawler.crawl_purchase_history` (forwarding the
+           optional ``mapper`` -- the DTO -> domain seam, PLAN.md §7);
+        5. return the :class:`CrawlResult` (raw bundles, or the mapper's output);
         6. always close the :class:`httpx.Client` (``try/finally``).
         """
 
@@ -69,7 +75,9 @@ class PurchaseHistoryJob:
                 api.get_profile()  # fail fast if the token is dead
 
             crawler = PurchasesCrawler(api, self._config)
-            return crawler.crawl_purchase_history()
+            if mapper is None:
+                return crawler.crawl_purchase_history()
+            return crawler.crawl_purchase_history(mapper=mapper)
         finally:
             client.close()
 

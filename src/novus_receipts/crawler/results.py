@@ -37,10 +37,15 @@ class CrawlItemError:
 
 
 @dataclass(frozen=True)
-class CrawlResult:
-    """The full crawl output: receipts, bonus balance, counters and item errors."""
+class CrawlResult[R]:
+    """The full crawl output: receipts, bonus balance, counters and item errors.
 
-    receipts: list[ReceiptBundle]
+    Generic over the receipt type ``R``: :class:`ReceiptBundle` for the raw /
+    identity path, or a mapper's output type (e.g. ``dict`` from
+    :class:`~novus_receipts.mapping.mappers.ReceiptMapper`).
+    """
+
+    receipts: list[R]
     current_bonuses: UserBonusResponse | None
     pages_fetched: int
     total_count: int | None

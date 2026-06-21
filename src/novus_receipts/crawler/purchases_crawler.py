@@ -27,7 +27,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable, Iterator
-from typing import TYPE_CHECKING, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
 
 from pydantic import ValidationError
 from tenacity import (
@@ -61,6 +61,7 @@ if TYPE_CHECKING:
     from novus_receipts.dto.bonuses import UserBonusResponse
 
 T = TypeVar("T")
+_R = TypeVar("_R")  # mapper output type for crawl_purchase_history
 
 
 class _Api(Protocol):
@@ -107,14 +108,34 @@ class PurchasesCrawler:
 
     # -- public orchestration ----------------------------------------------
 
+    @overload
+    def crawl_purchase_history(
+        self,
+        *,
+        with_details: bool = ...,
+        with_bonuses: bool = ...,
+        max_pages: int | None = ...,
+        mapper: None = ...,
+    ) -> CrawlResult[ReceiptBundle]: ...
+
+    @overload
+    def crawl_purchase_history(
+        self,
+        *,
+        with_details: bool = ...,
+        with_bonuses: bool = ...,
+        max_pages: int | None = ...,
+        mapper: Mapper[ReceiptBundle, _R],
+    ) -> CrawlResult[_R]: ...
+
     def crawl_purchase_history(
         self,
         *,
         with_details: bool = True,
         with_bonuses: bool = True,
         max_pages: int | None = None,
-        mapper: Mapper[ReceiptBundle, ReceiptBundle] | None = None,
-    ) -> CrawlResult:
+        mapper: Mapper[ReceiptBundle, Any] | None = None,
+    ) -> CrawlResult[Any]:
         """Walk the history, stitch details and (optionally) read the balance.
 
         Pagination is flattened into ordered :class:`ReceiptBundle` items. A
@@ -130,11 +151,11 @@ class PurchasesCrawler:
         unchanged; a custom mapper transforms each bundle in place of identity.
         """
 
-        bundle_mapper: Mapper[ReceiptBundle, ReceiptBundle] = (
+        bundle_mapper: Mapper[ReceiptBundle, Any] = (
             mapper if mapper is not None else IdentityMapper()
         )
 
-        receipts: list[ReceiptBundle] = []
+        receipts: list[Any] = []
         item_errors: list[CrawlItemError] = []
         pages_fetched = 0
         total_count: int | None = None
