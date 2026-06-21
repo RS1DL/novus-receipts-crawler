@@ -16,10 +16,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta, timezone
 
 import httpx
 import pytest
 
+from novus_receipts.__main__ import parse_from
 from novus_receipts.config import AppConfig
 from novus_receipts.crawler.results import CrawlResult
 from novus_receipts.entrypoint import PurchaseHistoryJob
@@ -242,7 +244,7 @@ def test_main_returns_zero_and_prints_serialisable_json(
 
     monkeypatch.setattr(cli, "PurchaseHistoryJob", fake_job)
 
-    rc = cli.main()
+    rc = cli.main(argv=[])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -262,3 +264,26 @@ def test_main_returns_zero_and_prints_serialisable_json(
     assert parsed["receipts"][0]["summary"]["amount"] == 250.5
     assert isinstance(parsed["receipts"][0]["summary"]["amount"], float)
     assert parsed["current_bonuses"]["data"] == 12.3
+
+
+# --- parse_from (CLI --from) ------------------------------------------------
+
+
+def test_parse_from_duration_subtracts_from_now() -> None:
+    now = datetime(2026, 6, 17, 12, 0, tzinfo=UTC)
+    assert parse_from("7d", now=now, tz=UTC) == now - timedelta(days=7)
+    assert parse_from("2w", now=now, tz=UTC) == now - timedelta(weeks=2)
+    assert parse_from("24h", now=now, tz=UTC) == now - timedelta(hours=24)
+    assert parse_from("30m", now=now, tz=UTC) == now - timedelta(minutes=30)
+
+
+def test_parse_from_absolute_date_uses_configured_tz() -> None:
+    tz = timezone(timedelta(hours=3))
+    now = datetime(2026, 6, 17, tzinfo=tz)
+    assert parse_from("2026-06-10", now=now, tz=tz) == datetime(2026, 6, 10, tzinfo=tz)
+
+
+def test_parse_from_absolute_datetime_keeps_its_offset() -> None:
+    now = datetime(2026, 6, 17, tzinfo=UTC)
+    parsed = parse_from("2026-06-10T08:30:00+00:00", now=now, tz=UTC)
+    assert parsed == datetime(2026, 6, 10, 8, 30, tzinfo=UTC)

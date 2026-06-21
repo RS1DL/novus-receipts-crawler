@@ -13,6 +13,7 @@ when crawling raises, so connections never leak.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -54,7 +55,10 @@ class PurchaseHistoryJob:
         return self._config
 
     def run(
-        self, *, mapper: Mapper[ReceiptBundle, Any] | None = None
+        self,
+        *,
+        from_: datetime | None = None,
+        mapper: Mapper[ReceiptBundle, Any] | None = None,
     ) -> CrawlResult[Any]:
         """Build the client, (optionally) health-check, crawl; always close.
 
@@ -66,7 +70,8 @@ class PurchaseHistoryJob:
            from config;
         3. optionally ``get_profile()`` as a token health-check before crawling;
         4. run :meth:`PurchasesCrawler.crawl_purchase_history` (forwarding the
-           optional ``mapper`` -- the DTO -> domain seam, PLAN.md §7);
+           optional ``mapper`` -- the DTO -> domain seam, PLAN.md §7 -- and the
+           optional ``from_`` cutoff for incremental collection);
         5. return the :class:`CrawlResult` (raw bundles, or the mapper's output);
         6. always close the :class:`httpx.Client` (``try/finally``).
         """
@@ -82,8 +87,8 @@ class PurchaseHistoryJob:
 
             crawler = PurchasesCrawler(api, self._config)
             if mapper is None:
-                return crawler.crawl_purchase_history()
-            return crawler.crawl_purchase_history(mapper=mapper)
+                return crawler.crawl_purchase_history(from_=from_)
+            return crawler.crawl_purchase_history(from_=from_, mapper=mapper)
         finally:
             client.close()
 

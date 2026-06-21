@@ -39,5 +39,18 @@ Then collect the data (reads the tokens from `.env`):
 uv run python -m novus_receipts > receipts.json
 ```
 
-`NOVUS_USER_TOKEN` can also be supplied directly via the environment instead of
-the login step if you already have a token.
+### Incremental collection (`--from`)
+
+The Novus API has no server-side date filter, but the list is ordered
+newest-first, so `--from` lets the crawler **stop early** — only the receipts you
+want are fetched (no old pages, no old detail calls). Accepts a duration before
+now (`7d`, `2w`, `24h`) or an ISO date/datetime:
+
+```bash
+uv run python -m novus_receipts --from 7d > last_week.json      # last 7 days
+uv run python -m novus_receipts --from 2026-06-01 > june.json   # since a date
+```
+
+Dates are rendered in `NOVUS_TIMEZONE` (default `Europe/Kyiv`); money fields come
+out as numbers. `NOVUS_USER_TOKEN` can also be supplied directly via the
+environment instead of the login step if you already have a token.

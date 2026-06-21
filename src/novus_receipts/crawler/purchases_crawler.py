@@ -27,6 +27,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable, Iterator
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, overload
 
 from pydantic import ValidationError
@@ -115,6 +116,7 @@ class PurchasesCrawler:
         with_details: bool = ...,
         with_bonuses: bool = ...,
         max_pages: int | None = ...,
+        from_: datetime | None = ...,
         mapper: None = ...,
     ) -> CrawlResult[ReceiptBundle]: ...
 
@@ -125,6 +127,7 @@ class PurchasesCrawler:
         with_details: bool = ...,
         with_bonuses: bool = ...,
         max_pages: int | None = ...,
+        from_: datetime | None = ...,
         mapper: Mapper[ReceiptBundle, _R],
     ) -> CrawlResult[_R]: ...
 
@@ -134,6 +137,7 @@ class PurchasesCrawler:
         with_details: bool = True,
         with_bonuses: bool = True,
         max_pages: int | None = None,
+        from_: datetime | None = None,
         mapper: Mapper[ReceiptBundle, Any] | None = None,
     ) -> CrawlResult[Any]:
         """Walk the history, stitch details and (optionally) read the balance.
@@ -144,16 +148,21 @@ class PurchasesCrawler:
         the rest continue. ``with_details`` / ``with_bonuses`` gate the detail
         and balance steps; ``max_pages`` caps how many pages are pulled.
 
+        ``from_`` enables incremental collection: only receipts whose ``date``
+        is at or after ``from_`` are kept, and -- since the Novus list is ordered
+        newest-month-first -- pagination **stops early** once a whole page falls
+        entirely before ``from_`` (so we don't fetch old pages or their details).
+        The Novus API has no server-side date filter, so this is client-side.
+
         ``mapper`` is the isolated DTO -> domain extension point (PLAN.md §7).
-        Each stitched :class:`ReceiptBundle` is passed through ``mapper.map``
-        before it lands in :attr:`CrawlResult.receipts`. ``None`` means identity
-        (an :class:`IdentityMapper`), so the raw DTO bundles are returned
-        unchanged; a custom mapper transforms each bundle in place of identity.
+        Each kept :class:`ReceiptBundle` is passed through ``mapper.map`` before
+        it lands in :attr:`CrawlResult.receipts`. ``None`` means identity.
         """
 
         bundle_mapper: Mapper[ReceiptBundle, Any] = (
             mapper if mapper is not None else IdentityMapper()
         )
+        from_epoch = None if from_ is None else from_.timestamp()
 
         receipts: list[Any] = []
         item_errors: list[CrawlItemError] = []
@@ -164,12 +173,23 @@ class PurchasesCrawler:
             total_count = page_resp.total_count
             pages_fetched += 1
 
-            for check in self._flatten_checks(page_resp):
+            page_checks = self._flatten_checks(page_resp)
+            if from_epoch is None:
+                checks = page_checks
+            else:
+                checks = [c for c in page_checks if c.date >= from_epoch]
+
+            for check in checks:
                 detail = self._collect_detail(check, with_details, item_errors)
                 bundle = ReceiptBundle(summary=check, detail=detail)
                 receipts.append(bundle_mapper.map(bundle))
                 if with_details:
                     self._sleep(self._config.request_delay_s)
+
+            # Early-stop: this whole page is older than the cutoff, and pages are
+            # month-descending, so every later page is older too -- stop paging.
+            if from_epoch is not None and page_checks and not checks:
+                break
 
             if max_pages is not None and pages_fetched >= max_pages:
                 break

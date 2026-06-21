@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -715,6 +716,56 @@ def test_crawl_captures_detail_validation_error_and_continues(
     assert isinstance(result.receipts[1].detail, BillResponse)
     assert len(result.errors) == 1
     assert isinstance(result.errors[0].error, ValidationError)
+
+
+# --------------------------------------------------------------------------- #
+# Incremental collection: from_ cutoff filters + early-stops pagination         #
+# --------------------------------------------------------------------------- #
+
+
+def test_crawl_from_filters_in_range_and_early_stops(
+    api: FakeApi, fake_sleeper: Any
+) -> None:
+    # Page 1: two recent checks (>= cutoff). Page 2: only an older check (< cutoff)
+    # -> the whole page is out of range, so pagination stops and page 3 is never
+    # fetched. Details are fetched only for the in-range receipts.
+    recent1 = make_check(check_number="r1", date=2000, work_station_id="9")
+    recent2 = make_check(check_number="r2", date=1500, work_station_id="9")
+    old1 = make_check(check_number="o1", date=500, work_station_id="9")
+    never = make_check(check_number="x", date=100, work_station_id="9")
+    api.queue_purchases_2(
+        make_page([[recent1, recent2]], page=1, total_count=100),
+        make_page([[old1]], page=2, total_count=100),
+        make_page([[never]], page=3, total_count=100),
+    )
+    api.queue_bill(make_bill("r1"), make_bill("r2"))  # only in-range fetch details
+    api.queue_bonuses(make_bonuses())
+
+    cutoff = datetime.fromtimestamp(1000, tz=UTC)
+    result = make_crawler(api, fake_sleeper).crawl_purchase_history(from_=cutoff)
+
+    assert [b.summary.check_number for b in result.receipts] == ["r1", "r2"]
+    assert result.pages_fetched == 2  # page 1 + page 2, then early-stop
+    assert len(api._purchases_2) == 1  # page 3 was never fetched
+    assert result.errors == []
+
+
+def test_crawl_from_first_page_all_older_stops_immediately(
+    api: FakeApi, fake_sleeper: Any
+) -> None:
+    old = make_check(check_number="o", date=500, work_station_id="9")
+    api.queue_purchases_2(
+        make_page([[old]], page=1, total_count=100),
+        make_page([[make_check(check_number="x", date=100)]], page=2, total_count=100),
+    )
+    api.queue_bonuses(make_bonuses())
+
+    cutoff = datetime.fromtimestamp(1000, tz=UTC)
+    result = make_crawler(api, fake_sleeper).crawl_purchase_history(from_=cutoff)
+
+    assert result.receipts == []
+    assert result.pages_fetched == 1
+    assert len(api._purchases_2) == 1  # page 2 never fetched
 
 
 # --------------------------------------------------------------------------- #
