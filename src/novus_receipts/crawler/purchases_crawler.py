@@ -79,7 +79,9 @@ class _Api(Protocol):
 
     def refresh_token(self, refresh_token: str) -> ConfirmWithOtpResponse: ...
 
-    def get_purchases_2(self, page: int = 1) -> Purchase2Response: ...
+    def get_purchases_2(
+        self, page: int = 1, limit: int | None = None
+    ) -> Purchase2Response: ...
 
     def get_bill(
         self, store: str, date: int, check_number: str, work_station_id: str
@@ -228,11 +230,16 @@ class PurchasesCrawler:
             return None
 
     def _iter_purchase_pages(self) -> Iterator[Purchase2Response]:
-        """Paginate ``/user/purchases_2`` through the resilient fetch layer."""
+        """Paginate ``/user/purchases_2`` through the resilient fetch layer.
 
+        Each request asks for ``config.page_size`` receipts (the server default
+        is 10), so a larger page size means fewer list requests.
+        """
+
+        page_size = self._config.page_size
         return iter_purchase_pages(
             lambda page: self._call_with_resilience(
-                lambda: self._api.get_purchases_2(page=page)
+                lambda: self._api.get_purchases_2(page=page, limit=page_size)
             )
         )
 

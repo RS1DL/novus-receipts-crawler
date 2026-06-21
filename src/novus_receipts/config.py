@@ -48,6 +48,10 @@ class AppConfig(BaseSettings):
     backoff_base_s: float = 1.0
     request_delay_s: float = 0.2
     detail_concurrency: int = 1
+    # Receipts requested per /user/purchases_2 page (NOVUS_PAGE_SIZE). The Novus
+    # default is 10; the server honours a larger value, so a bigger page means
+    # fewer list requests for the same history.
+    page_size: int = 100
     # IANA timezone the CLI renders receipt dates in (NOVUS_TIMEZONE). Defaults to
     # Kyiv so output matches what the Novus app shows. This is a presentation/
     # mapping concern, not an API parameter.

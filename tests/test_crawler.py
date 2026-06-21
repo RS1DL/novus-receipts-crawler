@@ -226,8 +226,8 @@ class FakeApi:
 
     # -- api surface --------------------------------------------------------
 
-    def get_purchases_2(self, page: int = 1) -> Any:
-        self.calls.append(("get_purchases_2", (page,)))
+    def get_purchases_2(self, page: int = 1, limit: int | None = None) -> Any:
+        self.calls.append(("get_purchases_2", (page, limit)))
         return self._next(self._purchases_2)
 
     def get_bill(
@@ -768,6 +768,23 @@ def test_crawl_from_first_page_all_older_stops_immediately(
     assert len(api._purchases_2) == 1  # page 2 never fetched
 
 
+def test_crawl_requests_configured_page_size(
+    api: FakeApi, fake_sleeper: Any
+) -> None:
+    api.queue_purchases_2(
+        make_page([[make_check()]], page=1, total_count=1),
+        make_page([], page=2, total_count=1),
+    )
+    api.queue_bill(make_bill())
+    api.queue_bonuses(make_bonuses())
+
+    make_crawler(api, fake_sleeper, page_size=250).crawl_purchase_history()
+
+    limits = [args[1] for name, args in api.calls if name == "get_purchases_2"]
+    assert limits  # at least one list request was made
+    assert all(limit == 250 for limit in limits)
+
+
 # --------------------------------------------------------------------------- #
 # T5.9 flag gating: with_details / with_bonuses / max_pages                     #
 # --------------------------------------------------------------------------- #
@@ -828,7 +845,8 @@ def test_max_pages_limits_pagination(api: FakeApi, fake_sleeper: Any) -> None:
     result = crawler.crawl_purchase_history(max_pages=2)
 
     assert result.pages_fetched == 2
-    assert api.method_calls("get_purchases_2") == [(1,), (2,)]
+    pages = [args[0] for args in api.method_calls("get_purchases_2")]
+    assert pages == [1, 2]
     assert [b.summary.check_number for b in result.receipts] == ["1", "2"]
 
 

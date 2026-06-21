@@ -138,15 +138,26 @@ class NovusApiClient:
             params={"page": page},
         )
 
-    def get_purchases_2(self, page: int = 1) -> Purchase2Response:
-        """GET ``/user/purchases_2?page=`` (variant B)."""
+    def get_purchases_2(
+        self, page: int = 1, limit: int | None = None
+    ) -> Purchase2Response:
+        """GET ``/user/purchases_2?page=`` (variant B).
 
+        ``limit`` is not in the app's own request signature, but the server
+        honours it (the default page size is 10); sending a larger value lets the
+        crawler pull more receipts per request. Omitted from the query when
+        ``None`` (server default applies).
+        """
+
+        params: dict[str, int | str] = {"page": page}
+        if limit is not None:
+            params["limit"] = limit
         return self._request(
             Purchase2Response,
             "GET",
             "/user/purchases_2",
             auth=True,
-            params={"page": page},
+            params=params,
         )
 
     def get_shopping(self, page: int = 1, limit: int = 10) -> ShoppingDetailsResponse:

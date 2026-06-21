@@ -337,11 +337,24 @@ def test_get_purchases_2_request_and_dto(
     req = recorder.last
     assert req.method == "GET"
     assert urlsplit(str(req.url)).path == "/user/purchases_2"
+    # No limit sent by default -> server's default page size applies.
     assert query_of(req) == {"page": ["2"]}
     assert req.headers["user_token"] == "start-token"
     assert isinstance(result, Purchase2Response)
     assert result.total_count == 1
     assert result.page == 2
+
+
+def test_get_purchases_2_sends_limit_when_given(
+    make_mock_client: Callable[..., httpx.Client],
+) -> None:
+    client, recorder = build_client(
+        make_mock_client, json_data=_purchase2_payload()
+    )
+
+    client.get_purchases_2(page=1, limit=200)
+
+    assert query_of(recorder.last) == {"page": ["1"], "limit": ["200"]}
 
 
 # --- T4.6: get_shopping -----------------------------------------------------

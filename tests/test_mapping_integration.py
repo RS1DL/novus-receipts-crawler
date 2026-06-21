@@ -122,7 +122,7 @@ class FakeApi:
             raise item
         return item
 
-    def get_purchases_2(self, page: int = 1) -> Any:
+    def get_purchases_2(self, page: int = 1, limit: int | None = None) -> Any:
         return self._next(self._purchases_2)
 
     def get_bill(self, store: str, date: int, check_number: str, work_station_id: str) -> Any:
@@ -154,6 +154,8 @@ _NOVUS_ENV_VARS = (
     "NOVUS_BACKOFF_BASE_S",
     "NOVUS_REQUEST_DELAY_S",
     "NOVUS_DETAIL_CONCURRENCY",
+    "NOVUS_TIMEZONE",
+    "NOVUS_PAGE_SIZE",
 )
 
 

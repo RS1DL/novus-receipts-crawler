@@ -27,6 +27,7 @@ NOVUS_ENV_VARS = (
     "NOVUS_REQUEST_DELAY_S",
     "NOVUS_DETAIL_CONCURRENCY",
     "NOVUS_TIMEZONE",
+    "NOVUS_PAGE_SIZE",
 )
 
 DEFAULT_PRIVATE_KEY = "070696aa5d8844e3c71e90604a7b0a11dc0c99638d3f2e0bf53c2f091ac52d4c"
@@ -59,6 +60,7 @@ def test_defaults_match_plan(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.request_delay_s == 0.2
     assert config.detail_concurrency == 1
     assert config.timezone == "Europe/Kyiv"
+    assert config.page_size == 100
 
 
 def test_timezone_overridable_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -67,6 +69,14 @@ def test_timezone_overridable_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NOVUS_TIMEZONE", "UTC")
 
     assert AppConfig().timezone == "UTC"
+
+
+def test_page_size_overridable_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_env(monkeypatch)
+    monkeypatch.setenv("NOVUS_USER_TOKEN", "tok")
+    monkeypatch.setenv("NOVUS_PAGE_SIZE", "250")
+
+    assert AppConfig().page_size == 250
 
 
 def test_default_field_types(monkeypatch: pytest.MonkeyPatch) -> None:
