@@ -19,6 +19,7 @@ from novus_receipts import login as login_cli
 from novus_receipts.auth.login import (
     LoginClient,
     LoginSettings,
+    normalize_phone,
     write_tokens_to_env,
 )
 from novus_receipts.dto.auth import (
@@ -450,6 +451,8 @@ def test_main_happy_path_writes_tokens_and_masks_output(
     def handler(request: httpx.Request) -> httpx.Response:
         recorder.requests.append(request)
         path = urlsplit(str(request.url)).path
+        if path == "/auth/auth_token":
+            return httpx.Response(200, json={"auth_token": "AT-token"})
         if path == "/auth/check_user_by_phone":
             return httpx.Response(200, json=otp_body)
         if path == "/auth/confirm_with_otp":
@@ -467,6 +470,7 @@ def test_main_happy_path_writes_tokens_and_masks_output(
         print_fn=printer,
         env_path=str(env),
         http_client=http,
+        google_id="g-test",
     )
 
     assert rc == 0
@@ -488,9 +492,13 @@ def test_main_happy_path_writes_tokens_and_masks_output(
     assert "****7890" in out
     assert "****1234" in out
 
-    # Both login calls were made, in order, without user_token.
+    # All three OTP calls were made, in order, without user_token.
     paths = [urlsplit(str(r.url)).path for r in recorder.requests]
-    assert paths == ["/auth/check_user_by_phone", "/auth/confirm_with_otp"]
+    assert paths == [
+        "/auth/auth_token",
+        "/auth/check_user_by_phone",
+        "/auth/confirm_with_otp",
+    ]
     for r in recorder.requests:
         assert_no_user_token(r)
         assert_constant_headers(r)
@@ -508,6 +516,8 @@ def test_main_passes_phone_and_otp_through(
     def handler(request: httpx.Request) -> httpx.Response:
         path = urlsplit(str(request.url)).path
         bodies.append(json.loads(request.content))
+        if path == "/auth/auth_token":
+            return httpx.Response(200, json={"auth_token": "AT-xyz"})
         if path == "/auth/check_user_by_phone":
             return httpx.Response(200, json=otp_body)
         return httpx.Response(200, json=confirm_body)
@@ -519,10 +529,44 @@ def test_main_passes_phone_and_otp_through(
         print_fn=CapturePrint(),
         env_path=str(env),
         http_client=http,
+        google_id="g-xyz",
     )
 
-    assert bodies[0] == {"phone": "380999999999"}
-    assert bodies[1] == {"otp": "5678", "phone": "380999999999"}
+    # 1) auth_token {phone, google_id}; 2) check_user_by_phone adds the obtained
+    # auth_token; 3) confirm adds otp + the same auth_token + google_id.
+    assert bodies[0] == {"phone": "380999999999", "google_id": "g-xyz"}
+    assert bodies[1] == {
+        "phone": "380999999999",
+        "google_id": "g-xyz",
+        "auth_token": "AT-xyz",
+    }
+    assert bodies[2] == {
+        "otp": "5678",
+        "phone": "380999999999",
+        "auth_token": "AT-xyz",
+        "google_id": "g-xyz",
+    }
+
+
+# --- normalize_phone --------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "+380631234567",
+        "380631234567",
+        "0631234567",
+        "631234567",
+        "00380631234567",
+        "+380 63 123 45 67",
+        " +380-63-123-45-67 ",
+    ],
+)
+def test_normalize_phone_maps_common_shapes_to_country_code_form(raw: str) -> None:
+    # The API expects "380XXXXXXXXX" (no '+', no spaces); see the live 400
+    # "Invalid parameters passed: phone" for the '+'-prefixed form.
+    assert normalize_phone(raw) == "380631234567"
 
 
 # --- _mask ------------------------------------------------------------------

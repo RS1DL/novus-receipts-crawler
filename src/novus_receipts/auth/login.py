@@ -16,6 +16,7 @@ fields are omitted entirely when ``None`` (mirroring ``get_bonuses_history``).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import ClassVar, TypeVar
 
@@ -54,6 +55,11 @@ class LoginSettings(BaseSettings):
     platform: ClassVar[str] = "android"
     platform_version: str = "14 (34)"
     timeout_s: float = 30
+    # Device identifier the API requires for the OTP flow. The real app sends a
+    # Firebase Installations id; the server accepts any opaque string, so when
+    # unset the CLI generates a random one per run (override via NOVUS_GOOGLE_ID
+    # to keep a stable "device").
+    google_id: str | None = None
 
 
 class LoginClient:
@@ -172,6 +178,28 @@ class LoginClient:
         if google_id is not None:
             body["google_id"] = google_id
         return self._post(ConfirmWithOtpResponse, "/auth/confirm_with_otp", body)
+
+
+def normalize_phone(raw: str) -> str:
+    """Normalise a Ukrainian phone to the API's ``380XXXXXXXXX`` form.
+
+    The Novus API rejects a leading ``+`` and any spacing/punctuation with
+    ``{"message": "Invalid parameters passed: phone"}``; it expects the country
+    code ``380`` followed by the 9-digit subscriber number. This accepts the
+    common shapes -- ``+380…``, ``380…``, ``00380…``, national ``0XXXXXXXXX``
+    and the bare 9 digits -- and maps them all to ``380XXXXXXXXX``.
+    """
+
+    digits = re.sub(r"\D", "", raw)  # drop '+', spaces, dashes, parentheses
+    if digits.startswith("00"):
+        digits = digits[2:]
+    if digits.startswith("380"):
+        return digits
+    if digits.startswith("0"):
+        return "380" + digits[1:]
+    if len(digits) == 9:
+        return "380" + digits
+    return digits
 
 
 def write_tokens_to_env(

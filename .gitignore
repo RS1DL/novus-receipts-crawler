@@ -20,6 +20,9 @@ htmlcov/
 # Secrets — never commit real tokens
 .env
 
+# Collected output (personal data) — keep out of git (tests/fixtures/*.json stay tracked)
+/*.json
+
 # Editor / OS
 .idea/
 .vscode/
