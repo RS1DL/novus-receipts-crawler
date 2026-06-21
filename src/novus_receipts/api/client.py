@@ -112,17 +112,40 @@ class NovusApiClient:
         errors.raise_for_response(response)
         return model.model_validate(response.json())
 
+    def _get(
+        self,
+        model: type[ModelT],
+        path: str,
+        *,
+        params: dict[str, int | str] | None = None,
+        auth: bool = True,
+    ) -> ModelT:
+        """GET ``path`` -> ``model``. Authenticated (``user_token``) by default."""
+
+        return self._request(model, "GET", path, auth=auth, params=params)
+
+    def _post(
+        self,
+        model: type[ModelT],
+        path: str,
+        *,
+        json: dict[str, object] | None = None,
+        auth: bool = True,
+    ) -> ModelT:
+        """POST ``json`` to ``path`` -> ``model``. Authenticated by default."""
+
+        return self._request(model, "POST", path, auth=auth, json=json)
+
     # --- authorization (for reactive refresh) -------------------------------
 
     def refresh_token(self, refresh_token: str) -> ConfirmWithOtpResponse:
         """POST ``/auth/refresh_token`` (no ``user_token``) -> fresh session."""
 
-        return self._request(
+        return self._post(
             ConfirmWithOtpResponse,
-            "POST",
             "/auth/refresh_token",
-            auth=False,
             json={"refresh_token": refresh_token},
+            auth=False,
         )
 
     # --- purchase history (receipt lists) -----------------------------------
@@ -130,12 +153,8 @@ class NovusApiClient:
     def get_purchases(self, page: int = 1) -> PurchaseDetailsResponse:
         """GET ``/user/purchases?page=`` (variant A)."""
 
-        return self._request(
-            PurchaseDetailsResponse,
-            "GET",
-            "/user/purchases",
-            auth=True,
-            params={"page": page},
+        return self._get(
+            PurchaseDetailsResponse, "/user/purchases", params={"page": page}
         )
 
     def get_purchases_2(
@@ -152,22 +171,14 @@ class NovusApiClient:
         params: dict[str, int | str] = {"page": page}
         if limit is not None:
             params["limit"] = limit
-        return self._request(
-            Purchase2Response,
-            "GET",
-            "/user/purchases_2",
-            auth=True,
-            params=params,
-        )
+        return self._get(Purchase2Response, "/user/purchases_2", params=params)
 
     def get_shopping(self, page: int = 1, limit: int = 10) -> ShoppingDetailsResponse:
         """GET ``/v2/user/purchases?page=&limit=`` (variant C)."""
 
-        return self._request(
+        return self._get(
             ShoppingDetailsResponse,
-            "GET",
             "/v2/user/purchases",
-            auth=True,
             params={"page": page, "limit": limit},
         )
 
@@ -178,11 +189,9 @@ class NovusApiClient:
     ) -> PurchaseDetalizationResponse:
         """GET ``/user/purchase_2?store=&date=&check_number=`` (variant A)."""
 
-        return self._request(
+        return self._get(
             PurchaseDetalizationResponse,
-            "GET",
             "/user/purchase_2",
-            auth=True,
             params={"store": store, "date": date, "check_number": check_number},
         )
 
@@ -195,11 +204,9 @@ class NovusApiClient:
     ) -> BillResponse:
         """GET ``/v2/user/purchase?store=&date=&check_number=&work_station_id=``."""
 
-        return self._request(
+        return self._get(
             BillResponse,
-            "GET",
             "/v2/user/purchase",
-            auth=True,
             params={
                 "store": store,
                 "date": date,
@@ -213,12 +220,7 @@ class NovusApiClient:
     def get_current_bonuses(self) -> UserBonusResponse:
         """GET ``/user/bonuses/current`` -> the current bonus balance."""
 
-        return self._request(
-            UserBonusResponse,
-            "GET",
-            "/user/bonuses/current",
-            auth=True,
-        )
+        return self._get(UserBonusResponse, "/user/bonuses/current")
 
     def get_bonuses_history(
         self,
@@ -234,22 +236,13 @@ class NovusApiClient:
         params: dict[str, int | str] = {"page": page, "limit": limit}
         if type_id is not None:
             params["type_id"] = type_id
-        return self._request(
-            BonusesResponse,
-            "GET",
-            "/user/bonuses",
-            auth=True,
-            params=params,
-        )
+        return self._get(BonusesResponse, "/user/bonuses", params=params)
 
     def get_bonuses_types(self) -> Data[list[BonusResponseType]]:
         """GET ``/user/bonuses_types`` (no ``user_token``) -> bonus type refs."""
 
-        return self._request(
-            Data[list[BonusResponseType]],
-            "GET",
-            "/user/bonuses_types",
-            auth=False,
+        return self._get(
+            Data[list[BonusResponseType]], "/user/bonuses_types", auth=False
         )
 
     # --- profile (token health-check) ---------------------------------------
@@ -257,9 +250,4 @@ class NovusApiClient:
     def get_profile(self) -> ProfileResponse:
         """GET ``/user/profile`` -> the user profile (token health-check)."""
 
-        return self._request(
-            ProfileResponse,
-            "GET",
-            "/user/profile",
-            auth=True,
-        )
+        return self._get(ProfileResponse, "/user/profile")

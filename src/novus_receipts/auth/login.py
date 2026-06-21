@@ -17,6 +17,7 @@ fields are omitted entirely when ``None`` (mirroring ``get_bonuses_history``).
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import ClassVar, TypeVar
 
@@ -34,6 +35,16 @@ from novus_receipts.dto.auth import (
 )
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
+
+
+def _without_none(body: Mapping[str, object | None]) -> dict[str, object]:
+    """Return ``body`` without the keys whose value is ``None``.
+
+    The Novus auth endpoints expect optional fields (``auth_token``,
+    ``google_id``, ``referral_user_id``) to be absent rather than ``null``.
+    """
+
+    return {key: value for key, value in body.items() if value is not None}
 
 
 class LoginSettings(BaseSettings):
@@ -120,6 +131,23 @@ class LoginClient:
             {"google_id": google_id, "phone": phone},
         )
 
+    def _send_otp_request(
+        self,
+        path: str,
+        phone: str,
+        auth_token: str | None,
+        google_id: str | None,
+    ) -> OtpChallengeResponse:
+        """Shared body for ``check_user_by_phone`` / ``resend_otp`` (same shape)."""
+
+        return self._post(
+            OtpChallengeResponse,
+            path,
+            _without_none(
+                {"phone": phone, "auth_token": auth_token, "google_id": google_id}
+            ),
+        )
+
     def request_otp(
         self,
         phone: str,
@@ -132,12 +160,9 @@ class LoginClient:
         ``auth_token`` / ``google_id`` are omitted from the body when ``None``.
         """
 
-        body: dict[str, object] = {"phone": phone}
-        if auth_token is not None:
-            body["auth_token"] = auth_token
-        if google_id is not None:
-            body["google_id"] = google_id
-        return self._post(OtpChallengeResponse, "/auth/check_user_by_phone", body)
+        return self._send_otp_request(
+            "/auth/check_user_by_phone", phone, auth_token, google_id
+        )
 
     def resend_otp(
         self,
@@ -148,12 +173,9 @@ class LoginClient:
     ) -> OtpChallengeResponse:
         """POST ``/auth/resend_otp`` -> resends the SMS code (same body/reply)."""
 
-        body: dict[str, object] = {"phone": phone}
-        if auth_token is not None:
-            body["auth_token"] = auth_token
-        if google_id is not None:
-            body["google_id"] = google_id
-        return self._post(OtpChallengeResponse, "/auth/resend_otp", body)
+        return self._send_otp_request(
+            "/auth/resend_otp", phone, auth_token, google_id
+        )
 
     def confirm_otp(
         self,
@@ -170,14 +192,19 @@ class LoginClient:
         the body when ``None``.
         """
 
-        body: dict[str, object] = {"otp": otp, "phone": phone}
-        if referral_user_id is not None:
-            body["referral_user_id"] = referral_user_id
-        if auth_token is not None:
-            body["auth_token"] = auth_token
-        if google_id is not None:
-            body["google_id"] = google_id
-        return self._post(ConfirmWithOtpResponse, "/auth/confirm_with_otp", body)
+        return self._post(
+            ConfirmWithOtpResponse,
+            "/auth/confirm_with_otp",
+            _without_none(
+                {
+                    "otp": otp,
+                    "phone": phone,
+                    "referral_user_id": referral_user_id,
+                    "auth_token": auth_token,
+                    "google_id": google_id,
+                }
+            ),
+        )
 
 
 def normalize_phone(raw: str) -> str:
