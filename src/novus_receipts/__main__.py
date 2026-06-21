@@ -60,7 +60,9 @@ def main() -> int:
     """Run the job, print the serialised result to stdout, return ``0``."""
 
     result = PurchaseHistoryJob().run()
-    json.dump(_result_to_jsonable(result), sys.stdout)
+    # ensure_ascii=False keeps Cyrillic (and other non-ASCII) human-readable in
+    # the output instead of escaping it to \uXXXX.
+    json.dump(_result_to_jsonable(result), sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")
     return 0
 

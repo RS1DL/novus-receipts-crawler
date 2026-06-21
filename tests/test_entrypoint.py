@@ -39,7 +39,7 @@ _PURCHASE_CHECK = {
     "bonus": "12.30",
     "check_number": "42",
     "date": 1718000000,
-    "shop_address": "Kyiv",
+    "shop_address": "Київ",
     "work_station_id": "9",
 }
 
@@ -250,3 +250,7 @@ def test_main_returns_zero_and_prints_serialisable_json(
     assert "receipts" in parsed
     assert parsed["pages_fetched"] == 1
     assert parsed["receipts"][0]["summary"]["check_number"] == "42"
+    # Non-ASCII is written human-readable (ensure_ascii=False), not escaped.
+    assert "Київ" in out
+    assert "\\u04" not in out
+    assert parsed["receipts"][0]["summary"]["shop_address"] == "Київ"
