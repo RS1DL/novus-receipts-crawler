@@ -29,26 +29,13 @@ from novus_receipts.dto.auth import (
     OtpChallengeResponse,
 )
 from novus_receipts.errors import NovusApiError, NovusAuthError
-
-BASE_URL = "https://api.novus.online"
-PRIVATE_KEY = "070696aa5d8844e3c71e90604a7b0a11dc0c99638d3f2e0bf53c2f091ac52d4c"
-
-
-class RequestRecorder:
-    """A MockTransport handler that records each request and replies canned JSON."""
-
-    def __init__(self, json_data: object, status_code: int = 200) -> None:
-        self.json_data = json_data
-        self.status_code = status_code
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        return httpx.Response(self.status_code, json=self.json_data)
-
-    @property
-    def last(self) -> httpx.Request:
-        return self.requests[-1]
+from tests.conftest import (
+    BASE_URL,
+    PRIVATE_KEY,
+    RequestRecorder,
+    assert_constant_headers,
+    assert_no_user_token,
+)
 
 
 def build_login_client(
@@ -64,20 +51,6 @@ def build_login_client(
     recorder = RequestRecorder(json_data, status_code)
     http = make_mock_client(recorder, base_url=cfg.base_url)
     return LoginClient(http, cfg), recorder
-
-
-def assert_constant_headers(request: httpx.Request) -> None:
-    """Every request must carry the three constant Novus headers."""
-
-    assert request.headers["Platform"] == "android"
-    assert request.headers["PlatformVersion"] == "14 (34)"
-    assert request.headers["private_key"] == PRIVATE_KEY
-
-
-def assert_no_user_token(request: httpx.Request) -> None:
-    """No login endpoint is @Authentication -> user_token must never be sent."""
-
-    assert "user_token" not in request.headers
 
 
 def _confirm_payload() -> dict[str, object]:

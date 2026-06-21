@@ -258,26 +258,7 @@ class FakeApi:
         return [args for called, args in self.calls if called == name]
 
 
-# NOVUS_* env vars AppConfig reads; cleared so the host env / a developer .env
-# never leaks into the crawler tests (which build configs explicitly).
-_NOVUS_ENV_VARS = (
-    "NOVUS_BASE_URL",
-    "NOVUS_USER_TOKEN",
-    "NOVUS_REFRESH_TOKEN",
-    "NOVUS_PRIVATE_KEY",
-    "NOVUS_PLATFORM_VERSION",
-    "NOVUS_TIMEOUT_S",
-    "NOVUS_MAX_RETRIES",
-    "NOVUS_BACKOFF_BASE_S",
-    "NOVUS_REQUEST_DELAY_S",
-    "NOVUS_DETAIL_CONCURRENCY",
-)
-
-
-@pytest.fixture(autouse=True)
-def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in _NOVUS_ENV_VARS:
-        monkeypatch.delenv(name, raising=False)
+# NOVUS_* env vars are cleared globally by the conftest autouse fixture.
 
 
 @pytest.fixture

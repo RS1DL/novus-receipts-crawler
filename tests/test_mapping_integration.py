@@ -17,8 +17,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-import pytest
-
 from novus_receipts.config import AppConfig
 from novus_receipts.crawler.purchases_crawler import PurchasesCrawler
 from novus_receipts.crawler.results import ReceiptBundle
@@ -141,28 +139,7 @@ class FakeApi:
         self.access_token = token
 
 
-# NOVUS_* env vars AppConfig reads; cleared so host env / a developer .env never
-# leaks into these tests (which build configs explicitly).
-_NOVUS_ENV_VARS = (
-    "NOVUS_BASE_URL",
-    "NOVUS_USER_TOKEN",
-    "NOVUS_REFRESH_TOKEN",
-    "NOVUS_PRIVATE_KEY",
-    "NOVUS_PLATFORM_VERSION",
-    "NOVUS_TIMEOUT_S",
-    "NOVUS_MAX_RETRIES",
-    "NOVUS_BACKOFF_BASE_S",
-    "NOVUS_REQUEST_DELAY_S",
-    "NOVUS_DETAIL_CONCURRENCY",
-    "NOVUS_TIMEZONE",
-    "NOVUS_PAGE_SIZE",
-)
-
-
-@pytest.fixture(autouse=True)
-def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in _NOVUS_ENV_VARS:
-        monkeypatch.delenv(name, raising=False)
+# NOVUS_* env vars are cleared globally by the conftest autouse fixture.
 
 
 def _seed_two_receipts(api: FakeApi) -> None:

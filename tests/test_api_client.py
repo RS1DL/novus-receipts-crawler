@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -30,9 +30,13 @@ from novus_receipts.dto.purchases import (
     ShoppingDetailsResponse,
 )
 from novus_receipts.errors import NovusAuthError, NovusTransientError
-
-BASE_URL = "https://api.novus.online"
-PRIVATE_KEY = "070696aa5d8844e3c71e90604a7b0a11dc0c99638d3f2e0bf53c2f091ac52d4c"
+from tests.conftest import (
+    BASE_URL,
+    PRIVATE_KEY,
+    RequestRecorder,
+    assert_constant_headers,
+    query_of,
+)
 
 
 def make_config(**overrides: object) -> AppConfig:
@@ -49,23 +53,6 @@ def make_config(**overrides: object) -> AppConfig:
     return AppConfig(**fields)  # type: ignore[arg-type]
 
 
-class RequestRecorder:
-    """A MockTransport handler that records each request and replies canned JSON."""
-
-    def __init__(self, json_data: object, status_code: int = 200) -> None:
-        self.json_data = json_data
-        self.status_code = status_code
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        return httpx.Response(self.status_code, json=self.json_data)
-
-    @property
-    def last(self) -> httpx.Request:
-        return self.requests[-1]
-
-
 def build_client(
     make_mock_client: Callable[..., httpx.Client],
     *,
@@ -79,20 +66,6 @@ def build_client(
     recorder = RequestRecorder(json_data, status_code)
     http = make_mock_client(recorder, base_url=cfg.base_url)
     return NovusApiClient(http, cfg), recorder
-
-
-def query_of(request: httpx.Request) -> dict[str, list[str]]:
-    """Return the parsed query string of a request as ``{key: [values]}``."""
-
-    return parse_qs(urlsplit(str(request.url)).query, keep_blank_values=True)
-
-
-def assert_constant_headers(request: httpx.Request) -> None:
-    """Every request must carry the three constant Novus headers."""
-
-    assert request.headers["Platform"] == "android"
-    assert request.headers["PlatformVersion"] == "14 (34)"
-    assert request.headers["private_key"] == PRIVATE_KEY
 
 
 # --- T4.0: constructor + constant headers -----------------------------------

@@ -16,11 +16,34 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+#: Constants shared across HTTP-client tests.
+BASE_URL = "https://api.novus.online"
+PRIVATE_KEY = "070696aa5d8844e3c71e90604a7b0a11dc0c99638d3f2e0bf53c2f091ac52d4c"
+
+#: Every NOVUS_* env var AppConfig / LoginSettings read. Cleared before each test
+#: (see ``_clear_novus_env``) so the host shell never leaks into a test.
+NOVUS_ENV_VARS = (
+    "NOVUS_BASE_URL",
+    "NOVUS_USER_TOKEN",
+    "NOVUS_REFRESH_TOKEN",
+    "NOVUS_PRIVATE_KEY",
+    "NOVUS_PLATFORM",
+    "NOVUS_PLATFORM_VERSION",
+    "NOVUS_TIMEOUT_S",
+    "NOVUS_MAX_RETRIES",
+    "NOVUS_BACKOFF_BASE_S",
+    "NOVUS_REQUEST_DELAY_S",
+    "NOVUS_DETAIL_CONCURRENCY",
+    "NOVUS_TIMEZONE",
+    "NOVUS_PAGE_SIZE",
+)
 
 # Type aliases for the injectable test helpers.
 RequestHandler = Callable[[httpx.Request], httpx.Response]
@@ -42,6 +65,54 @@ def _isolated_cwd(
     """
 
     monkeypatch.chdir(tmp_path)
+
+
+@pytest.fixture(autouse=True)
+def _clear_novus_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear every NOVUS_* var so the host environment never leaks into a test.
+
+    Tests that need a value set it themselves (or build the config explicitly).
+    """
+
+    for name in NOVUS_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+
+
+class RequestRecorder:
+    """A ``MockTransport`` handler that records each request and replies canned JSON."""
+
+    def __init__(self, json_data: Any = None, status_code: int = 200) -> None:
+        self.json_data = json_data
+        self.status_code = status_code
+        self.requests: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        return httpx.Response(self.status_code, json=self.json_data)
+
+    @property
+    def last(self) -> httpx.Request:
+        return self.requests[-1]
+
+
+def query_of(request: httpx.Request) -> dict[str, list[str]]:
+    """Return a request's parsed query string as ``{key: [values]}``."""
+
+    return parse_qs(urlsplit(str(request.url)).query, keep_blank_values=True)
+
+
+def assert_constant_headers(request: httpx.Request) -> None:
+    """Every request must carry the three constant Novus headers."""
+
+    assert request.headers["Platform"] == "android"
+    assert request.headers["PlatformVersion"] == "14 (34)"
+    assert request.headers["private_key"] == PRIVATE_KEY
+
+
+def assert_no_user_token(request: httpx.Request) -> None:
+    """The request must not carry the per-call ``user_token`` auth header."""
+
+    assert "user_token" not in request.headers
 
 
 @pytest.fixture
