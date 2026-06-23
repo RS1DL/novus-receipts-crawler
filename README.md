@@ -48,4 +48,6 @@ uv run ruff check .  # lint
 uv run mypy          # types
 ```
 
+More detail — architecture, endpoints, full output schema: [docs/SERVICE.md](docs/SERVICE.md).
+
 For your own Novus account only.
