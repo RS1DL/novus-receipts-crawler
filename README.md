@@ -1,7 +1,7 @@
 # novus-receipts
 
-Collects your **Novus** loyalty account's receipts, purchase details and bonus
-balance over HTTP and writes them to JSON for analysis.
+Collects a **Novus** loyalty account's receipts over the mobile-app API and
+writes them to JSON for analysis.
 
 ## Requirements
 
