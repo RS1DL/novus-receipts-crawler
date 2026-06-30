@@ -56,6 +56,15 @@ class AppConfig(BaseSettings):
     # Kyiv so output matches what the Novus app shows. This is a presentation/
     # mapping concern, not an API parameter.
     timezone: str = "Europe/Kyiv"
+    # SQLite file the ``collect`` job persists receipts/products/prices into
+    # (NOVUS_DB_PATH). Relative paths resolve against the cwd, like the JSON
+    # output; it is git-ignored. Keep it OUT of any cloud-synced folder -- a
+    # binary SQLite file plus a real-time file-sync daemon risks corruption.
+    db_path: str = "novus_receipts.db"
+    # Incremental overlap, in seconds, re-pulled before the stored watermark so
+    # late / same-day receipts are not missed (NOVUS_COLLECT_OVERLAP_S). The
+    # re-pull is harmless because every write is an idempotent upsert. Two days.
+    collect_overlap_s: int = 172_800
 
     @classmethod
     def from_env(cls) -> AppConfig:

@@ -23,6 +23,14 @@ htmlcov/
 # Collected output (personal data) — keep out of git (tests/fixtures/*.json stay tracked)
 /*.json
 
+# SQLite store written by `python -m novus_receipts.collect` (+ its WAL sidecars)
+/*.db
+/*.db-wal
+/*.db-shm
+
+# Sidecar crawl-error log (operational data)
+/*.errors.jsonl
+
 # Editor / OS
 .idea/
 .vscode/

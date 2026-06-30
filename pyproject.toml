@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 novus-receipts = "novus_receipts.__main__:main"
+novus-collect = "novus_receipts.collect:main"
 
 [dependency-groups]
 dev = [

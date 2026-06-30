@@ -43,6 +43,8 @@ NOVUS_ENV_VARS = (
     "NOVUS_DETAIL_CONCURRENCY",
     "NOVUS_TIMEZONE",
     "NOVUS_PAGE_SIZE",
+    "NOVUS_DB_PATH",
+    "NOVUS_COLLECT_OVERLAP_S",
 )
 
 # Type aliases for the injectable test helpers.

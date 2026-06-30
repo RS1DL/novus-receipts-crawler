@@ -134,6 +134,99 @@ talks only to your own account using your own session token.
 | `total_count` | int \| null | total receipts the server reports for the account |
 | `errors[]` | array | non-fatal per-receipt failures: `{ "check_number", "error" }` |
 
+## Collecting over time (SQLite store)
+
+The one-shot CLI prints JSON; for an ongoing history use the **collect job**,
+which persists into a local SQLite database and builds a per-product price
+time-series. It composes the same crawler — no analysis layer yet, just durable,
+queryable collection.
+
+```bash
+uv run python -m novus_receipts.collect          # incremental: resume from last run
+uv run python -m novus_receipts.collect --full   # ignore watermark, re-scan all
+uv run python -m novus_receipts.collect --from 30d   # explicit cutoff
+uv run python -m novus_receipts.collect --db /path/data.db   # override NOVUS_DB_PATH
+```
+
+Each run prints a one-line summary, e.g.
+`collected 4 receipts, 24 line items, 12 products; 0 errors; from=…`.
+
+### How it works
+
+- **Incremental.** The next run resumes from the stored watermark (the newest
+  receipt `date` already saved) minus a small overlap window (`NOVUS_COLLECT_OVERLAP_S`,
+  default 2 days) so late / same-day receipts aren't missed. An empty database or
+  `--full` collects the whole history.
+- **Idempotent.** Every write is an upsert on a stable key, so re-running — or
+  re-pulling the overlap window — never duplicates rows. One receipt is written in
+  a single transaction (shop → header → products → items). The receipt id is a
+  **deterministic UUID** (`uuid5` of `check_number|date|shop_id`), so it's stable
+  across rebuilds.
+- **Resilient.** A receipt whose detail can't be fetched is stored header-only
+  (`detail_missing = 1`) and the failure is appended to a sidecar
+  `<db>.errors.jsonl` log (operational data, kept out of the DB); a later run
+  *within the overlap window* backfills the detail without clobbering anything
+  already stored (a persistent failure older than the window would need a future
+  explicit backfill pass — the `ix_receipts_detail_missing` index is reserved for it).
+- **Money as integer cents.** All `*_cents` columns are minor units (kopiykas) to
+  keep aggregation exact; `quantity` is kept verbatim plus a derived `quantity_num`.
+
+### Schema (normalized)
+
+No descriptive data is duplicated across tables — `address` lives only in
+`shops`, `title`/`price_type` only in `products`.
+
+| Table | What it holds |
+|---|---|
+| `shops` | one row per store (`shop_id` PK, `address`) — referenced by receipts, not copied |
+| `receipts` | one row per receipt (header), **UUID id**, dedup key `(check_number, date, shop_id)`, `shop_id` → `shops` |
+| `products` | the dynamic catalogue, keyed by the stable `GoodResponse.id`; the sole home of `title`/`price_type` |
+| `receipt_items` | the **junction** — which products appeared in which receipts, one row per goods line = a price observation (`unit_price_cents` + `unit_price_source`); no copied descriptive columns |
+| `meta` | bookkeeping (`schema_version`, `last_collect_ts`) |
+| `v_receipt_contents` *(view)* | "what products were in which receipt" — the readable join |
+| `v_price_series` *(view)* | a product's price over time — the entry point for trend analysis |
+
+Crawl errors are **not** in the database — they go to the sidecar
+`<db>.errors.jsonl`. `unit_price_cents` is the per-unit price: `item_price` when
+the API gives a non-zero one (piece goods), otherwise `amount / quantity` (weighed
+goods, where the API sends `item_price = 0`); `unit_price_source` records which
+rule applied (`item_price` / `amount_per_qty` / `unknown`).
+
+### Example queries
+
+```sql
+-- what products were in a given receipt
+SELECT product_title, quantity, unit_price_cents / 100.0 AS unit_uah,
+       amount_cents / 100.0 AS line_uah
+FROM v_receipt_contents WHERE check_number = '1880.231-0';
+
+-- a product's price-per-unit over time
+SELECT ts_iso, unit_price_cents / 100.0 AS price, price_type
+FROM v_price_series WHERE product_id = 1715 ORDER BY ts;
+
+-- spend per receipt
+SELECT date_iso, amount_cents / 100.0 AS uah FROM receipts ORDER BY date DESC;
+```
+
+### Scheduling
+
+Run it periodically; WAL mode lets an ad-hoc query read while a collect writes.
+
+cron (every 6h):
+
+```cron
+0 */6 * * *  cd /path/to/novus-receipts && uv run python -m novus_receipts.collect >> collect.log 2>&1
+```
+
+macOS launchd — `~/Library/LaunchAgents/online.novus.collect.plist` with
+`ProgramArguments` running the command, `StartInterval` `21600`, a
+`WorkingDirectory`, and `StandardOut/ErrorPath`; then
+`launchctl load …/online.novus.collect.plist`.
+
+> **Sync caveat.** The `.db` is git-ignored. Keep it out of any cloud-synced
+> folder (iCloud/Dropbox) — a binary SQLite file plus a real-time sync daemon
+> risks corruption. Run collection on one machine.
+
 ## Conclusion
 
 The service turns a phone number + SMS code into a clean, analysis-ready JSON

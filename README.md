@@ -33,6 +33,24 @@ there; the refresh token keeps the session alive, so you rarely log in again.
 uv run python -m novus_receipts --from 7d > last_week.json
 ```
 
+## Collect over time
+
+Build a local history and a per-product **price time-series** in SQLite —
+re-runnable and schedulable:
+
+```bash
+uv run python -m novus_receipts.collect          # incremental: resume from last run
+uv run python -m novus_receipts.collect --full   # ignore watermark, re-scan all
+```
+
+It upserts into `novus_receipts.db` (`NOVUS_DB_PATH`), so re-running never
+duplicates — each run resumes from the last and re-pulls a short overlap to catch
+late receipts. Query the series with the `v_price_series` view; schedule it via
+cron / launchd for ongoing collection. See [docs/SERVICE.md](docs/SERVICE.md).
+
+> Keep the `.db` out of any cloud-synced folder (iCloud/Dropbox): a binary
+> SQLite file plus a sync daemon risks corruption.
+
 ## Output
 
 A single JSON object: `receipts` (each with a `summary` and full `detail` —
