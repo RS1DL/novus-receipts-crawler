@@ -48,8 +48,11 @@ class ConfirmWithOtpResponse(BaseDTO):
 
     token: str
     refresh_token: str
-    first_authorization: bool
-    user_first_name: str
-    bonuses: str
-    bonus_type: str
-    blocked_card: bool
+    # Informational fields — the live API returns null for any of these
+    # (matches the decompiled model: all nullable with defaults). Only
+    # token / refresh_token are essential to establish the session.
+    first_authorization: bool | None = None
+    user_first_name: str | None = None
+    bonuses: str | None = None
+    bonus_type: str | None = None
+    blocked_card: bool | None = None

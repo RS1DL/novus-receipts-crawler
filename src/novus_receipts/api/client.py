@@ -102,13 +102,21 @@ class NovusApiClient:
         than a validation failure on an error body.
         """
 
-        response = self._http.request(
-            method,
-            path,
-            params=params,
-            json=json,
-            headers=self._auth_headers(auth),
-        )
+        try:
+            response = self._http.request(
+                method,
+                path,
+                params=params,
+                json=json,
+                headers=self._auth_headers(auth),
+            )
+        except httpx.TransportError as exc:
+            # Network-level failures (read/connect timeouts, connection resets)
+            # happen before any response and would otherwise escape as raw httpx
+            # exceptions. Wrap them as NovusTransientError so the crawler's retry
+            # layer retries them and, if exhausted, records them as a non-fatal
+            # per-receipt error instead of aborting the whole crawl.
+            raise errors.classify_transport_error(exc) from exc
         errors.raise_for_response(response)
         return model.model_validate(response.json())
 
